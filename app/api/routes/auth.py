@@ -1,7 +1,9 @@
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.database import get_db
 from app.models.patient import Patient
@@ -12,6 +14,7 @@ from app.schemas.auth import (
     UserRegisterRequest,
     UserResponse,
 )
+from app.services.audit_service import log_event
 
 router = APIRouter()
 
@@ -85,8 +88,52 @@ def login(
         (User.username == payload.username) | (User.email == payload.username)
     ).first()
 
+    now = datetime.now(timezone.utc)
+
+    # Check if account is temporarily locked
+    if user and user.locked_until:
+        locked_until = user.locked_until
+        if locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        if locked_until > now:
+            log_event(
+                db=db,
+                action="LOGIN_LOCKED",
+                resource_type="auth",
+                user_id=user.id,
+                details=f"Login attempt rejected: Account '{user.username}' is locked until {user.locked_until}",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is temporarily locked due to multiple failed login attempts. Please try again later.",
+            )
+        else:
+            # Lockout expired, reset lockout state
+            user.failed_login_attempts = 0
+            user.locked_until = None
+            db.commit()
+
     # Reject safely without leaking if username exists vs password wrong
     if not user or not verify_password(payload.password, user.hashed_password):
+        if user:
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+            if user.failed_login_attempts >= settings.MAX_LOGIN_ATTEMPTS:
+                user.locked_until = now + timedelta(minutes=settings.LOGIN_LOCKOUT_MINUTES)
+                log_event(
+                    db=db,
+                    action="ACCOUNT_LOCKED",
+                    resource_type="auth",
+                    user_id=user.id,
+                    details=f"Account '{user.username}' locked after {user.failed_login_attempts} failed login attempts",
+                )
+            db.commit()
+
+        log_event(
+            db=db,
+            action="LOGIN_FAILURE",
+            resource_type="auth",
+            details=f"Failed login attempt for identifier: {payload.username}",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
@@ -98,6 +145,20 @@ def login(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Account is inactive",
         )
+
+    # Reset failed attempts upon successful login
+    if (user.failed_login_attempts or 0) > 0 or user.locked_until is not None:
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        db.commit()
+
+    log_event(
+        db=db,
+        action="LOGIN_SUCCESS",
+        resource_type="auth",
+        user_id=user.id,
+        details=f"User '{user.username}' successfully signed in",
+    )
 
     token = create_access_token(
         subject=user.id,

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -14,7 +14,10 @@ class Doctor(Base):
     specialization = Column(String(100), nullable=True)
     license_number = Column(String(50), unique=True, index=True, nullable=True)
     phone = Column(String(20), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
     user = relationship("User", back_populates="doctor_profile")
+    appointments = relationship("Appointment", back_populates="doctor", cascade="all, delete-orphan")
+    medical_records = relationship("MedicalRecord", back_populates="doctor", cascade="all, delete-orphan")

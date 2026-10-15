@@ -1,12 +1,12 @@
 import json
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "SecureCare Healthcare Management System"
-    VERSION: str = "1.0.0-sprint1"
+    VERSION: str = "1.0.0"
     API_V1_STR: str = "/api"
 
     # SQLite Database Configuration
@@ -16,11 +16,25 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    MAX_LOGIN_ATTEMPTS: int = 5
+    LOGIN_LOCKOUT_MINUTES: int = 15
+
+    # Jira Cloud Integration Configuration
+    JIRA_BASE_URL: str = "https://sakec-team-bcq481n1.atlassian.net"
+    JIRA_EMAIL: Optional[str] = None
+    JIRA_API_TOKEN: Optional[str] = None
+    JIRA_PROJECT_KEY: str = "SCR"
 
     # CORS Settings
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8501",
+        "http://localhost:8502",
     ]
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
