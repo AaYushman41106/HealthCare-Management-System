@@ -1,0 +1,42 @@
+# Version control
+.git
+.gitignore
+
+# Python virtual environment & bytecode
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# Secret and local environment files
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases (prevent baking local state into image)
+*.db
+*.sqlite3
+
+# Node.js dependencies & builds
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+
+# Test caches & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor & OS artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*.log
+.DS_Store
+Thumbs.db

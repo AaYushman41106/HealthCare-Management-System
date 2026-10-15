@@ -151,7 +151,6 @@ Integrated directly with Atlassian Jira Cloud (`https://sakec-team-bcq481n1.atla
 ## 📁 Repository Structure
 
 ```text
-Healthcare Management System/
 ├── frontend/                            # Modern React 18 SPA
 │   ├── src/
 │   │   ├── api/client.js                # Axios client with JWT bearer interceptor
@@ -167,6 +166,9 @@ Healthcare Management System/
 │   │   ├── App.jsx                      # Main app shell & router
 │   │   ├── main.jsx                     # Vite React entry point
 │   │   └── index.css                    # Tailwind CSS directives
+│   ├── Dockerfile                       # Multi-stage production Dockerfile (Node -> Nginx)
+│   ├── nginx.conf                       # Production Nginx reverse proxy & SPA router
+│   ├── .dockerignore                    # Frontend Docker ignore rules
 │   ├── package.json                     # Frontend npm dependencies
 │   ├── tailwind.config.js               # Tailwind design system tokens
 │   └── vite.config.js                   # Vite reverse proxy config (/api -> 8000)
@@ -200,8 +202,10 @@ Healthcare Management System/
 │   ├── main.py                          # FastAPI REST API entry point
 │   └── seed.py                          # Idempotent database seeder
 │
-├── streamlit_app.py                     # Streamlit Pure-Python UI (Alternative interface)
-│
+├── compose.yaml                         # Docker Compose orchestration specification
+├── Dockerfile.backend                   # Production hardened FastAPI container image
+├── docker-entrypoint.sh                 # Backend initialization & auto-seeding entrypoint
+├── .dockerignore                        # Root Docker ignore rules
 ├── tests/                               # Pytest automated test suite (82 Tests)
 │   ├── conftest.py                      # TestClient fixtures and in-memory database
 │   ├── test_admin.py                    # Admin RBAC and user lifecycle tests
@@ -233,7 +237,96 @@ Healthcare Management System/
 
 ---
 
-## 🚀 Quickstart & Setup Guide (Windows PowerShell)
+## 🐳 Production Docker Deployment
+
+SecureCare provides an enterprise-ready, multi-container Docker configuration with persistent storage, security hardening, automated health monitoring, and an Nginx reverse proxy.
+
+### Docker Architecture Overview
+
+```text
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                      DOCKER HOST (localhost:8080)                      │
+ │                                                                        │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │               Frontend Service (securecare-frontend)             │  │
+ │  │        • Multi-stage build (Node 20 Alpine -> Nginx 1.27 Alpine) │  │
+ │  │        • Production static asset compilation (Vite)              │  │
+ │  │        • Client-side SPA routing fallback (try_files)            │  │
+ │  │        • Nginx Reverse Proxy:                                    │  │
+ │  │          - /api/*       -> http://backend:8000/api/*             │  │
+ │  │          - /health      -> http://backend:8000/health            │  │
+ │  │          - /docs,/redoc -> http://backend:8000                   │  │
+ │  │        • Defensive headers: nosniff, SAMEORIGIN, strict-origin   │  │
+ │  └──────────────────────────────────┬───────────────────────────────┘  │
+ │                                     │ Docker Network                   │
+ │                                     │ (securecare_network)             │
+ │                                     ▼                                  │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │                Backend Service (securecare-backend)              │  │
+ │  │        • Python 3.11-slim runtime environment                    │  │
+ │  │        • Non-root process execution (UID/GID 1000: appuser)      │  │
+ │  │        • Automatic schema migration & seed initialization        │  │
+ │  │        • Uvicorn ASGI server listening on 0.0.0.0:8000           │  │
+ │  │        • Built-in container healthcheck via urllib               │  │
+ │  └──────────────────────────────────┬───────────────────────────────┘  │
+ │                                     │ Mounted Volume                   │
+ │                                     ▼                                  │
+ │  ┌──────────────────────────────────────────────────────────────────┐  │
+ │  │    Named Persistent Volume (securecare_backend_data -> /data)    │  │
+ │  │    • Preserves SQLite database (securecare.db) across restarts   │  │
+ │  │    • Immune to container recreation, upgrades, and teardowns     │  │
+ │  └──────────────────────────────────────────────────────────────────┘  │
+ └────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1. Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows with WSL2 backend or macOS / Linux)
+- Docker Compose v2 (bundled with Docker Desktop)
+
+### 2. Environment Configuration
+Copy the sample environment file if not already present:
+```powershell
+cp .env.example .env
+```
+*(By default, `.env.example` preconfigures secure local defaults including allowed origins for port 8080).*
+
+### 3. Build & Run Containers
+Launch all services in detached mode with an automatic build:
+```powershell
+docker compose up --build -d
+```
+
+### 4. Verify Application Health & Access Points
+Once started, all services are operational:
+* **Web Application UI**: [http://localhost:8080/](http://localhost:8080/)
+* **Backend Health Check**: [http://localhost:8080/health](http://localhost:8080/health)
+* **Interactive API Documentation (Swagger)**: [http://localhost:8080/docs](http://localhost:8080/docs)
+* **Direct Backend API Port (Debugging)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### 5. Essential Docker Management Commands
+```powershell
+# View running container status and health
+docker compose ps
+
+# View live container logs
+docker compose logs -f
+
+# View backend logs only
+docker compose logs -f backend
+
+# Verify database file inside persistent volume
+docker compose exec backend ls -la /data
+
+# Stop all running containers gracefully
+docker compose down
+
+# Stop containers and remove persistent volume (clean reset)
+docker compose down -v
+```
+
+---
+
+## 🚀 Local Development Quickstart (Windows PowerShell)
 
 ### 1. Prerequisites
 * Python 3.10+

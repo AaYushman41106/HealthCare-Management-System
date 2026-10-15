@@ -7,6 +7,13 @@ from app.core.config import settings
 # SQLite connection requires check_same_thread=False for multithreaded FastAPI requests
 connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
 
+if settings.DATABASE_URL.startswith("sqlite"):
+    import os
+    raw_path = settings.DATABASE_URL.split("sqlite:///")[-1]
+    dir_path = os.path.dirname(raw_path)
+    if dir_path:
+        os.makedirs(dir_path, exist_ok=True)
+
 engine = create_engine(
     settings.DATABASE_URL,
     connect_args=connect_args,
