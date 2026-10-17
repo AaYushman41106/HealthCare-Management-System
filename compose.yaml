@@ -1,6 +1,7 @@
 services:
   backend:
     build: .
+    image: securecare-backend:1.0
     container_name: securecare-backend
     restart: unless-stopped
     environment:
@@ -25,6 +26,7 @@ services:
 
   frontend:
     build: ./frontend
+    image: securecare-frontend:1.0
     container_name: securecare-frontend
     restart: unless-stopped
     environment:
