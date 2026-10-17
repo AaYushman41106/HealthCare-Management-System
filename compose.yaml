@@ -1,8 +1,6 @@
 services:
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile.backend
+    build: .
     container_name: securecare-backend
     restart: unless-stopped
     environment:
@@ -15,7 +13,7 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=60
       - MAX_LOGIN_ATTEMPTS=5
       - LOGIN_LOCKOUT_MINUTES=15
-      - ALLOWED_ORIGINS=["http://localhost:8080","http://127.0.0.1:8080","http://localhost:5173","http://127.0.0.1:5173","http://localhost:8000","http://127.0.0.1:8000"]
+      - ALLOWED_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173","http://localhost:8080","http://127.0.0.1:8080","http://localhost:8000","http://127.0.0.1:8000"]
       - JIRA_BASE_URL=${JIRA_BASE_URL:-https://sakec-team-bcq481n1.atlassian.net}
       - JIRA_EMAIL=${JIRA_EMAIL:-}
       - JIRA_API_TOKEN=${JIRA_API_TOKEN:-}
@@ -24,39 +22,19 @@ services:
       - backend_data:/data
     ports:
       - "8000:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    networks:
-      - securecare-net
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    build: ./frontend
     container_name: securecare-frontend
     restart: unless-stopped
+    environment:
+      - VITE_BACKEND_URL=http://backend:8000
     ports:
-      - "8080:80"
+      - "5173:5173"
+      - "8080:5173"
     depends_on:
-      backend:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
-      interval: 15s
-      timeout: 3s
-      retries: 3
-    networks:
-      - securecare-net
+      - backend
 
 volumes:
   backend_data:
     name: securecare_backend_data
-
-networks:
-  securecare-net:
-    name: securecare_network
-    driver: bridge

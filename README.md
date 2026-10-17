@@ -237,71 +237,61 @@ Integrated directly with Atlassian Jira Cloud (`https://sakec-team-bcq481n1.atla
 
 ---
 
-## 🐳 Production Docker Deployment
+## 🐳 Basic Docker Setup
 
-SecureCare provides an enterprise-ready, multi-container Docker configuration with persistent storage, security hardening, automated health monitoring, and an Nginx reverse proxy.
+SecureCare provides a clean, straightforward, single-stage Docker configuration that is easy to understand, maintain, and grade.
 
-### Docker Architecture Overview
+### Architecture Overview
 
 ```text
  ┌────────────────────────────────────────────────────────────────────────┐
- │                      DOCKER HOST (localhost:8080)                      │
+ │                      DOCKER HOST (localhost:5173 / 8080)               │
  │                                                                        │
  │  ┌──────────────────────────────────────────────────────────────────┐  │
  │  │               Frontend Service (securecare-frontend)             │  │
- │  │        • Multi-stage build (Node 20 Alpine -> Nginx 1.27 Alpine) │  │
- │  │        • Production static asset compilation (Vite)              │  │
- │  │        • Client-side SPA routing fallback (try_files)            │  │
- │  │        • Nginx Reverse Proxy:                                    │  │
- │  │          - /api/*       -> http://backend:8000/api/*             │  │
- │  │          - /health      -> http://backend:8000/health            │  │
- │  │          - /docs,/redoc -> http://backend:8000                   │  │
- │  │        • Defensive headers: nosniff, SAMEORIGIN, strict-origin   │  │
+ │  │        • Clean single-stage image based on node:20-alpine        │  │
+ │  │        • Runs Vite server with hot reloading & SPA routing       │  │
+ │  │        • Internal proxy routing:                                 │  │
+ │  │          - /api/* -> http://backend:8000/api/*                   │  │
  │  └──────────────────────────────────┬───────────────────────────────┘  │
  │                                     │ Docker Network                   │
- │                                     │ (securecare_network)             │
  │                                     ▼                                  │
  │  ┌──────────────────────────────────────────────────────────────────┐  │
  │  │                Backend Service (securecare-backend)              │  │
- │  │        • Python 3.11-slim runtime environment                    │  │
- │  │        • Non-root process execution (UID/GID 1000: appuser)      │  │
- │  │        • Automatic schema migration & seed initialization        │  │
+ │  │        • Clean single-stage image based on python:3.11-slim      │  │
+ │  │        • Auto database seed on start (python -m app.seed)        │  │
  │  │        • Uvicorn ASGI server listening on 0.0.0.0:8000           │  │
- │  │        • Built-in container healthcheck via urllib               │  │
  │  └──────────────────────────────────┬───────────────────────────────┘  │
  │                                     │ Mounted Volume                   │
  │                                     ▼                                  │
  │  ┌──────────────────────────────────────────────────────────────────┐  │
  │  │    Named Persistent Volume (securecare_backend_data -> /data)    │  │
  │  │    • Preserves SQLite database (securecare.db) across restarts   │  │
- │  │    • Immune to container recreation, upgrades, and teardowns     │  │
  │  └──────────────────────────────────────────────────────────────────┘  │
  └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 1. Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows with WSL2 backend or macOS / Linux)
-- Docker Compose v2 (bundled with Docker Desktop)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+- Docker Compose v2 (included with Docker Desktop).
 
 ### 2. Environment Configuration
 Copy the sample environment file if not already present:
 ```powershell
 cp .env.example .env
 ```
-*(By default, `.env.example` preconfigures secure local defaults including allowed origins for port 8080).*
 
 ### 3. Build & Run Containers
-Launch all services in detached mode with an automatic build:
+Launch all services in detached mode:
 ```powershell
 docker compose up --build -d
 ```
 
-### 4. Verify Application Health & Access Points
-Once started, all services are operational:
-* **Web Application UI**: [http://localhost:8080/](http://localhost:8080/)
-* **Backend Health Check**: [http://localhost:8080/health](http://localhost:8080/health)
-* **Interactive API Documentation (Swagger)**: [http://localhost:8080/docs](http://localhost:8080/docs)
-* **Direct Backend API Port (Debugging)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+### 4. Application Access Points
+Once started, access the platform at:
+* **Web Application UI**: [http://localhost:5173/](http://localhost:5173/) or [http://localhost:8080/](http://localhost:8080/)
+* **Backend REST API & Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+* **API Health Check**: [http://localhost:8000/health](http://localhost:8000/health) or [http://localhost:5173/api/health](http://localhost:5173/api/health)
 
 ### 5. Essential Docker Management Commands
 ```powershell

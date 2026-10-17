@@ -1,39 +1,16 @@
-# ==========================================
-# SecureCare FastAPI Production Backend Image
-# ==========================================
 FROM python:3.11-slim
-
-# Prevent Python from writing .pyc files and enable unbuffered logging
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PORT=8000
 
 WORKDIR /app
 
-# Create unprivileged application user and persistent data mount point
-RUN groupadd -g 1000 appgroup && \
-    useradd -u 1000 -g appgroup -s /bin/sh -m appuser && \
-    mkdir -p /app /data && \
-    chown -R appuser:appgroup /app /data
-
-# Install Python dependencies in cached layer
+# Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source code and entrypoint script
-COPY --chown=appuser:appgroup app /app/app
-COPY --chown=appuser:appgroup docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
+# Copy application source code
+COPY . .
 
-# Switch to non-root execution for defense-in-depth container security
-USER appuser
-
-# Expose internal service port
+# Expose backend REST API port
 EXPOSE 8000
 
-# Container healthcheck testing the health endpoint directly
-HEALTHCHECK --interval=20s --timeout=5s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')" || exit 1
-
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# Initialize database seed and run FastAPI with Uvicorn
+CMD ["sh", "-c", "python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
