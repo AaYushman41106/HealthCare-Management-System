@@ -1,7 +1,9 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import api_router
 from app.core.config import settings
@@ -38,16 +40,7 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
-@app.get("/", tags=["System"])
-def root_endpoint():
-    """Root API endpoint providing platform information."""
-    return {
-        "message": "SecureCare Healthcare Management System REST API",
-        "version": settings.VERSION,
-        "docs": "/docs",
-        "redoc": "/redoc",
-        "ui": "Streamlit Pure-Python UI running via `streamlit run streamlit_app.py`",
-    }
+FRONTEND_DIST = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
 
 
 @app.get("/health", tags=["Health"])
@@ -55,3 +48,35 @@ def root_endpoint():
 def health_check():
     """Simple health check endpoint for monitoring."""
     return {"status": "healthy", "version": settings.VERSION}
+
+
+@app.get("/", tags=["System"])
+def root_endpoint():
+    """Root endpoint serving React SPA when present, or API metadata."""
+    index_file = os.path.join(FRONTEND_DIST, "index.html")
+    if os.path.isfile(index_file):
+        return FileResponse(index_file)
+    return {
+        "message": "SecureCare Healthcare Management System REST API",
+        "version": settings.VERSION,
+        "docs": "/docs",
+        "redoc": "/redoc",
+    }
+
+
+# Mount static assets and SPA route fallback if frontend/dist exists
+if os.path.isdir(FRONTEND_DIST):
+    assets_dir = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa_fallback(full_path: str):
+        # Do not intercept API, docs, or health endpoints
+        if full_path.startswith("api/") or full_path in ("health", "docs", "redoc", "openapi.json"):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        file_path = os.path.join(FRONTEND_DIST, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
+

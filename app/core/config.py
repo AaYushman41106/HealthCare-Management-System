@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./securecare.db"
 
     # JWT & Authentication Configuration
-    SECRET_KEY: str
+    SECRET_KEY: str = "c83f942ba621980ee9d41e73797c5fba609f25efd03158c3534e75d1d4d39f4a"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     MAX_LOGIN_ATTEMPTS: int = 5
