@@ -34,3 +34,7 @@ htmlcov/
 *.swo
 *.log
 .DS_Store
+
+# Security scan and generated report artifacts
+html.tpl
+securecare-report*.html
