@@ -1,4 +1,5 @@
 import pytest
+from datetime import date, timedelta
 from app.core.security import create_access_token, hash_password
 from app.models.doctor import Doctor
 from app.models.patient import Patient
@@ -293,17 +294,19 @@ def test_admin_deactivate_doctor_removes_from_scheduling(client, admin_headers, 
     assert doctor_id not in available_doc_ids
 
     # Patient attempt to book appointment with deactivated doctor fails with 404
+    appt_date = (date.today() + timedelta(days=1)).isoformat()
     res_book = client.post(
         "/api/appointments",
         headers=patient_headers,
         json={
             "doctor_id": doctor_id,
-            "appointment_date": "2026-10-15",
+            "appointment_date": appt_date,
             "appointment_time": "10:00",
             "reason": "General checkup",
         },
     )
     assert res_book.status_code == 404
+    assert "doctor not found" in res_book.json()["detail"].lower()
 
 
 # ========================================================
