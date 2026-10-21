@@ -24,6 +24,8 @@ pipeline {
                     echo "Checking Docker..."
                     docker --version
                     docker ps
+                    echo "Checking Trivy..."
+                    trivy --version
                 '''
             }
         }
@@ -51,9 +53,43 @@ pipeline {
             }
         }
 
+        stage('SonarQube Analysis') {
+            steps {
+                echo "=== Stage 5: SonarQube Code Quality & Security Analysis ==="
+                script {
+                    def scannerHome = tool 'SonarScanner'
+                    withSonarQubeEnv('SonarQube') {
+                        sh "${scannerHome}/bin/sonar-scanner -Dproject.settings=sonar-project.properties"
+                    }
+                }
+            }
+        }
+
+        stage('Trivy Filesystem Scan') {
+            steps {
+                echo "=== Stage 6: Trivy Filesystem Security Scan ==="
+                sh '''
+                    echo "Scanning repository filesystem for vulnerabilities, misconfigurations, and secrets..."
+                    trivy fs \
+                        --scanners vuln,misconfig,secret \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 0 \
+                        --format table \
+                        --output trivy-fs-report.txt \
+                        .
+                    cat trivy-fs-report.txt
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-fs-report.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
         stage('Frontend and Docker Build') {
             steps {
-                echo "=== Stage 5: Build Unified Docker Image (${IMAGE_NAME}:${IMAGE_TAG}) ==="
+                echo "=== Stage 7: Build Unified Docker Image (${IMAGE_NAME}:${IMAGE_TAG}) ==="
                 sh '''
                     docker build -t "${IMAGE_NAME}:${IMAGE_TAG}" .
                     docker images "${IMAGE_NAME}"
@@ -61,9 +97,31 @@ pipeline {
             }
         }
 
+        stage('Trivy Docker Image Scan') {
+            steps {
+                echo "=== Stage 8: Trivy Docker Image Security Scan ==="
+                sh """
+                    echo "Scanning Docker image ${IMAGE_NAME}:${IMAGE_TAG} for vulnerabilities..."
+                    trivy image \
+                        --scanners vuln \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 0 \
+                        --format table \
+                        --output trivy-image-report.txt \
+                        "${IMAGE_NAME}:${IMAGE_TAG}"
+                    cat trivy-image-report.txt
+                """
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-image-report.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
         stage('Container Health Verification') {
             steps {
-                echo "=== Stage 6: Container Smoke Test & Health Verification ==="
+                echo "=== Stage 9: Container Smoke Test & Health Verification ==="
                 sh '''
                     CONTAINER_NAME="securecare-ci-${BUILD_NUMBER}"
                     echo "Target container name: ${CONTAINER_NAME}"
